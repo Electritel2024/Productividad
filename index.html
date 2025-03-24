@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productividad Diaria</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .task { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .status { font-weight: bold; }
+    button { margin-top: 5px; margin-right: 5px; }
+  </style>
+</head>
+<body>
+  <h1>🕒 Control de Tareas</h1>
+  <input id="taskName" type="text" placeholder="Nombre de tarea">
+  <input id="plannedTime" type="time">
+  <button onclick="addTask()">Agregar Tarea</button>
+
+  <div id="tasks"></div>
+
+  <script>
+    let tasks = [];
+
+    function addTask() {
+      const name = document.getElementById('taskName').value;
+      const planned = document.getElementById('plannedTime').value;
+      if (!name || !planned) return alert("Completa todos los campos");
+
+      const task = {
+        name,
+        planned,
+        start: null,
+        end: null,
+        duration: 0,
+        status: "Pendiente",
+        timer: null,
+        timePassed: 0, // en segundos
+        paused: false
+      };
+
+      tasks.push(task);
+      renderTasks();
+    }
+
+    function startTask(index) {
+      if (!tasks[index].start) {
+        tasks[index].start = new Date();
+      }
+      tasks[index].status = "En curso";
+      tasks[index].paused = false;
+      tasks[index].timer = setInterval(() => {
+        tasks[index].timePassed++;
+        renderTasks();
+      }, 1000);
+      renderTasks();
+    }
+
+    function pauseTask(index) {
+      clearInterval(tasks[index].timer);
+      tasks[index].paused = true;
+      tasks[index].status = "Pausado";
+      renderTasks();
+    }
+
+    function endTask(index) {
+      clearInterval(tasks[index].timer);
+      const end = new Date();
+      tasks[index].end = end;
+
+      const minutes = Math.floor(tasks[index].timePassed / 60);
+      const seconds = tasks[index].timePassed % 60;
+      tasks[index].duration = `${minutes} min ${seconds} seg`;
+
+      const planned = new Date();
+      const [h, m] = tasks[index].planned.split(":");
+      planned.setHours(h, m, 0, 0);
+
+      tasks[index].status = tasks[index].start <= planned ? "Finalizado A Tiempo" : "Finalizado con Retraso";
+
+      saveToSheet(tasks[index]);
+      renderTasks();
+    }
+
+    function formatTime(seconds) {
+      const min = Math.floor(seconds / 60);
+      const sec = seconds % 60;
+      return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    }
+
+    function renderTasks() {
+      const container = document.getElementById("tasks");
+      container.innerHTML = "";
+
+      tasks.forEach((task, i) => {
+        container.innerHTML += `
+          <div class="task">
+            <p><strong>${task.name}</strong></p>
+            <p>Programado: ${task.planned}</p>
+            <p>Inicio: ${task.start ? task.start.toLocaleTimeString() : '-'}<br>
+               Fin: ${task.end ? task.end.toLocaleTimeString() : '-'}</p>
+            <p>🕑 Tiempo actual: ${formatTime(task.timePassed)}</p>
+            <p>Duración total: ${task.duration || '-'} | <span class="status">${task.status}</span></p>
+            ${!task.start ? `<button onclick="startTask(${i})">Iniciar</button>` : 
+              (!task.end ? `
+                ${task.paused ? `<button onclick="startTask(${i})">Continuar</button>` : `<button onclick="pauseTask(${i})">Pausar</button>`}
+                <button onclick="endTask(${i})">Finalizar</button>` : '')}
+          </div>
+        `;
+      });
+    }
+
+    function saveToSheet(task) {
+      fetch("TU_URL_WEB_APP", {
+        method: "POST",
+        body: JSON.stringify({
+          name: task.name,
+          planned: task.planned,
+          start: task.start ? task.start.toLocaleTimeString() : '',
+          end: task.end ? task.end.toLocaleTimeString() : '',
+          duration: task.duration,
+          status: task.status
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+      .then(res => console.log("Guardado en Sheets"))
+      .catch(err => console.error("Error al guardar:", err));
+    }
+  </script>
+</body>
+</html>
